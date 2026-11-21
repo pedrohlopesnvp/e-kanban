@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f3f5f8;
+  --foreground: #1b212c;
+  --card: #ffffff;
+  --muted: #e7ebf1;
+  --muted-foreground: #5d6b80;
+  --border: #d5dce6;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --danger: #dc2626;
+  --warning: #ca8a04;
+  --success: #15803d;
+  --sidebar: #1b212c;
+  --sidebar-foreground: #e8edf4;
+  --ring: #2563eb;
+}
+
+.dark {
+  --background: #1b212c;
+  --foreground: #e8edf4;
+  --card: #232b39;
+  --muted: #2a3344;
+  --muted-foreground: #9aa6b8;
+  --border: #344055;
+  --primary: #60a5fa;
+  --primary-foreground: #0b1220;
+  --danger: #f87171;
+  --warning: #facc15;
+  --success: #4ade80;
+  --sidebar: #141a24;
+  --sidebar-foreground: #e8edf4;
+  --ring: #60a5fa;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-geist-sans);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), sans-serif;
+}
+
+input, select, textarea {
+  background: transparent;
+}

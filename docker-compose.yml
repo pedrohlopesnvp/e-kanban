@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ekanban-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ekanban
+      POSTGRES_PASSWORD: ekanban
+      POSTGRES_DB: ekanban
+    ports:
+      - "5432:5432"
+    volumes:
+      - ekanban_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ekanban -d ekanban"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ekanban_pg:

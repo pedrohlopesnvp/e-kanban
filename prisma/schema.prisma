@@ -1,0 +1,307 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  TRANSFER
+  RESERVE
+  RELEASE
+  RETURN
+}
+
+enum ReplenishmentStatus {
+  NEEDED
+  REQUESTED
+  IN_SUPPLY
+  REPLENISHED
+  CANCELLED
+}
+
+enum RequestSource {
+  AUTO
+  MANUAL
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ContainerType {
+  BOX
+  DRAWER
+  TRAY
+  SHELF
+  CUSTOM
+}
+
+enum ContainerStatus {
+  ACTIVE
+  INACTIVE
+  IN_REPLENISHMENT
+}
+
+enum BinRole {
+  NONE
+  WORKING
+  TRIGGER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(VIEWER)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     Session[]
+  movements    Movement[]
+  requests     ReplenishmentRequest[] @relation("RequestCreator")
+  assignments  ReplenishmentRequest[] @relation("RequestAssignee")
+  events       ReplenishmentEvent[]
+  auditLogs    AuditLog[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Category {
+  id           String     @id @default(cuid())
+  name         String
+  description  String?
+  parentId     String?
+  parent       Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children     Category[] @relation("CategoryTree")
+  active       Boolean    @default(true)
+  materials    Material[] @relation("MaterialCategory")
+  subMaterials Material[] @relation("MaterialSubcategory")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([parentId])
+  @@index([name])
+}
+
+model Supplier {
+  id        String     @id @default(cuid())
+  name      String
+  code      String     @unique
+  email     String?
+  phone     String?
+  active    Boolean    @default(true)
+  materials Material[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Location {
+  id               String                 @id @default(cuid())
+  code             String                 @unique
+  name             String
+  description      String?
+  active           Boolean                @default(true)
+  containers       Container[]
+  balances         StockBalance[]
+  movementsFrom    Movement[]             @relation("FromLocation")
+  movementsTo      Movement[]             @relation("ToLocation")
+  requests         ReplenishmentRequest[]
+  defaultMaterials Material[]             @relation("MaterialDefaultLocation")
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+}
+
+model Material {
+  id                String                 @id @default(cuid())
+  code              String                 @unique
+  name              String
+  description       String?
+  categoryId        String?
+  category          Category?              @relation("MaterialCategory", fields: [categoryId], references: [id])
+  subcategoryId     String?
+  subcategory       Category?              @relation("MaterialSubcategory", fields: [subcategoryId], references: [id])
+  barcode           String?                @unique
+  publicToken       String                 @unique @default(cuid())
+  imageUrl          String?
+  unit              String                 @default("UN")
+  minStock          Decimal                @default(0) @db.Decimal(14, 3)
+  maxStock          Decimal                @default(0) @db.Decimal(14, 3)
+  reorderPoint      Decimal                @default(0) @db.Decimal(14, 3)
+  reorderQty        Decimal                @default(0) @db.Decimal(14, 3)
+  defaultLocationId String?
+  defaultLocation   Location?              @relation("MaterialDefaultLocation", fields: [defaultLocationId], references: [id])
+  supplierId        String?
+  supplier          Supplier?              @relation(fields: [supplierId], references: [id])
+  supplierCode      String?
+  unitCost          Decimal                @default(0) @db.Decimal(14, 4)
+  active            Boolean                @default(true)
+  lastMovementAt    DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  balances          StockBalance[]
+  movements         Movement[]
+  requests          ReplenishmentRequest[]
+
+  @@index([name])
+  @@index([categoryId])
+  @@index([active])
+}
+
+model Container {
+  id                 String          @id @default(cuid())
+  code               String          @unique
+  type               ContainerType
+  description        String?
+  locationId         String
+  location           Location        @relation(fields: [locationId], references: [id])
+  capacity           Decimal?        @db.Decimal(14, 3)
+  publicToken        String          @unique @default(cuid())
+  status             ContainerStatus @default(ACTIVE)
+  pairGroup          String?
+  binRole            BinRole         @default(NONE)
+  active             Boolean         @default(true)
+  balances           StockBalance[]
+  movementsFrom      Movement[]      @relation("MovementFromContainer")
+  movementsTo        Movement[]      @relation("MovementToContainer")
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([locationId])
+  @@index([pairGroup])
+}
+
+/// Saldo físico por material, localização e recipiente.
+/// containerKey é "_" quando o saldo não está em um recipiente.
+/// A quantidade disponível do Kanban não fica nesta tabela: ela é derivada.
+model StockBalance {
+  id           String     @id @default(cuid())
+  materialId   String
+  material     Material   @relation(fields: [materialId], references: [id])
+  locationId   String
+  location     Location   @relation(fields: [locationId], references: [id])
+  containerId  String?
+  container    Container? @relation(fields: [containerId], references: [id])
+  containerKey String
+  onHand       Decimal    @default(0) @db.Decimal(14, 3)
+  reserved     Decimal    @default(0) @db.Decimal(14, 3)
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([materialId, locationId, containerKey])
+  @@index([materialId])
+  @@index([locationId])
+  @@index([containerId])
+}
+
+model Movement {
+  id              String       @id @default(cuid())
+  materialId      String
+  material        Material     @relation(fields: [materialId], references: [id])
+  type            MovementType
+  quantity        Decimal      @db.Decimal(14, 3)
+  quantitySigned  Decimal      @db.Decimal(14, 3)
+  userId          String?
+  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  fromLocationId  String?
+  fromLocation    Location?    @relation("FromLocation", fields: [fromLocationId], references: [id])
+  toLocationId    String?
+  toLocation      Location?    @relation("ToLocation", fields: [toLocationId], references: [id])
+  fromContainerId String?
+  fromContainer   Container?   @relation("MovementFromContainer", fields: [fromContainerId], references: [id])
+  toContainerId   String?
+  toContainer     Container?   @relation("MovementToContainer", fields: [toContainerId], references: [id])
+  note            String?
+  idempotencyKey  String?      @unique
+  createdAt       DateTime     @default(now())
+
+  @@index([materialId, createdAt])
+  @@index([createdAt])
+  @@index([userId])
+  @@index([type])
+}
+
+model ReplenishmentRequest {
+  id              String               @id @default(cuid())
+  materialId      String
+  material        Material             @relation(fields: [materialId], references: [id])
+  locationId      String
+  location        Location             @relation(fields: [locationId], references: [id])
+  status          ReplenishmentStatus
+  priority        Priority             @default(MEDIUM)
+  quantity        Decimal              @db.Decimal(14, 3)
+  availableAtOpen Decimal              @db.Decimal(14, 3)
+  source          RequestSource
+  requestedById   String?
+  requestedBy     User?                @relation("RequestCreator", fields: [requestedById], references: [id])
+  assigneeId      String?
+  assignee        User?                @relation("RequestAssignee", fields: [assigneeId], references: [id])
+  note            String?
+  openedAt        DateTime             @default(now())
+  closedAt        DateTime?
+  events          ReplenishmentEvent[]
+
+  @@index([materialId, locationId, status])
+  @@index([status])
+  @@index([openedAt])
+}
+
+model ReplenishmentEvent {
+  id         String                @id @default(cuid())
+  requestId  String
+  request    ReplenishmentRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fromStatus ReplenishmentStatus?
+  toStatus   ReplenishmentStatus
+  userId     String?
+  user       User?                 @relation(fields: [userId], references: [id])
+  note       String?
+  createdAt  DateTime              @default(now())
+
+  @@index([requestId, createdAt])
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@index([userId])
+}
