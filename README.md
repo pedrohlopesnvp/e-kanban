@@ -23,15 +23,7 @@ No PowerShell, use `Copy-Item .env.example .env` se o arquivo ainda não existir
 
 A aplicação fica em [http://localhost:3000](http://localhost:3000).
 
-### Contas de demonstração
-
-| Perfil | E-mail | Senha |
-| --- | --- | --- |
-| Administrador | admin@ekanban.local | Admin@123 |
-| Operador | operador@ekanban.local | Operador@123 |
-| Visualizador | visualizador@ekanban.local | Visual@123 |
-
-O comando de seed recria essa base. Ele apaga os dados de demonstração anteriores.
+O comando de seed recria os dados de demonstração e apaga a carga anterior.
 
 ## Testes
 
